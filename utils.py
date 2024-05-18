@@ -3,6 +3,7 @@ from jax import lax, random, numpy as jnp
 import numpy as np
 from flax import linen as nn
 from flax.training import train_state, orbax_utils
+import torch
 import optax
 import orbax.checkpoint as ocp
 from typing import Any
@@ -25,6 +26,12 @@ def create_train_state(model, rng, learning_rate):
     opti = optax.adam(learning_rate)
     return train_state.TrainState.create(apply_fn=model.apply,
                                          params=params, tx=opti)
+    
+def numpy_to_torch(array):
+    array = jax.device_get(array)
+    tensor = torch.from_numpy(array)
+    tensor = tensor.permute(0, 3, 1, 2)
+    return tensor
     
 class TrainStateEMA(train_state.TrainState):
     batch_stats: Any

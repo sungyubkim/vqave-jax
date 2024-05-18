@@ -6,6 +6,7 @@ import orbax.checkpoint as ocp
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+import torchvision
 from torchvision.datasets import CelebA
 from tqdm import tqdm
 
@@ -125,7 +126,10 @@ def main():
             loss_test.append(loss)
             perplexity_test.append(metrics["perplexity"].item())
         
-        utils.plot_reconstruction(batch, img_reconstruction, step=step)
+        img_reconstruction = utils.numpy_to_torch(img_reconstruction[:16])
+        img_grid = torchvision.utils.make_grid(img_reconstruction, nrow=4, normalize=True, pad_value=0.9)
+        writer.add_image('sample_cat', img_grid)
+        # utils.plot_reconstruction(batch, img_reconstruction, step=step)
             
         writer.add_scalars('loss', {'train': np.mean(loss_train),
                                     'test': np.mean(loss_test)}, e)
