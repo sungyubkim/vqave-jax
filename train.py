@@ -11,22 +11,7 @@ from tqdm import tqdm
 
 import utils
 from models.vae import VQVAE, VQVAE_EMA
-
-# Globales
-batch_size = 256
-workers = 8
-learning_rate = 0.001
-epochs = 100
-seed = 1234
-beta = 0.25
-gamma = 0.9
-num_embeddings = 512
-latent_dim = 64
-writer = SummaryWriter("./logs/standard_loss")
-use_ema = False
-# Calculated in the jupyter notebook
-img_mean = (0.5, 0.5, 0.5)
-img_std = (0.25, 0.25, 0.25)
+from omegaconf import OmegaConf
 
 @jax.jit
 def train_step(state, batch):
@@ -84,37 +69,40 @@ def eval_step_EMA(state, batch):
     return x_recon, recon_loss + commitment_loss, metrics
 
 def main():
-    trainset = CelebA(root="./data", split='train', download=True,
-                       transform=lambda x: utils.numpy_normalize(x, img_mean, img_std))
-    testset = CelebA(root="./data", split='test', download=True,
-                       transform=lambda x: utils.numpy_normalize(x, img_mean, img_std))
-    trainloader = DataLoader(trainset, batch_size, shuffle=True, num_workers=workers,
+    conf = OmegaConf.load("/home/sungyub/vqave-jax/configs/train_vqvae.yaml")
+    writer = SummaryWriter(conf.log_dir)
+    
+    trainset = CelebA(root="~/data", split='train', download=True,
+                       transform=lambda x: utils.numpy_normalize(x, conf.img_mean, conf.img_std))
+    testset = CelebA(root="~/data", split='test', download=True,
+                       transform=lambda x: utils.numpy_normalize(x, conf.img_mean, conf.img_std))
+    trainloader = DataLoader(trainset, conf.batch_size, shuffle=True, num_workers=conf.num_workers,
                              collate_fn=utils.numpy_collate, drop_last=True)
-    testloader = DataLoader(testset, batch_size, shuffle=False, num_workers=workers,
+    testloader = DataLoader(testset, conf.batch_size, shuffle=False, num_workers=conf.num_workers,
                             collate_fn=utils.numpy_collate, drop_last=True)
 
     # Model initialization
-    if use_ema:
-        init_rng = jax.random.PRNGKey(seed)
+    if conf.use_ema:
+        init_rng = jax.random.PRNGKey(conf.seed)
         init_rng, codebook_rng = jax.random.split(init_rng)
-        model = VQVAE_EMA(num_embeddings=num_embeddings, latent_dim=latent_dim, rng=codebook_rng,
-                        beta=beta, gamma=gamma)
-        state = utils.create_train_state_EMA(model, init_rng, learning_rate)
+        model = VQVAE_EMA(num_embeddings=conf.num_embeddings, latent_dim=conf.latent_dim, rng=codebook_rng,
+                        beta=conf.beta, gamma=conf.gamma)
+        state = utils.create_train_state_EMA(model, init_rng, conf.learning_rate)
     else:
-        model = VQVAE(num_embeddings=num_embeddings, latent_dim=latent_dim, beta=beta)
-        init_rng = jax.random.PRNGKey(seed)
-        state = utils.create_train_state(model, init_rng, learning_rate)
+        model = VQVAE(num_embeddings=conf.num_embeddings, latent_dim=conf.latent_dim, beta=conf.beta)
+        init_rng = jax.random.PRNGKey(conf.seed)
+        state = utils.create_train_state(model, init_rng, conf.learning_rate)
     del init_rng
 
     # Training loop
-    epoch = tqdm(range(epochs))
+    epoch = tqdm(range(conf.num_epochs))
     step = 0
     for e in epoch:
         loss_train, loss_test, perplexity_train, perplexity_test = [], [], [], []
         recon_loss, codebook_loss, commitment_loss = [], [], []
-        torch.manual_seed(seed)
+        torch.manual_seed(conf.seed)
         for batch in trainloader:
-            if use_ema:
+            if conf.use_ema:
                 state, loss, metrics = train_step_EMA(state, batch)
             else:
                 state, loss, metrics = train_step(state, batch)
@@ -123,14 +111,14 @@ def main():
             recon_loss.append(metrics["recon_loss"].item())
             codebook_loss.append(metrics["codebook_loss"].item())
             commitment_loss.append(metrics["commitment_loss"].item())
-        writer.add_scalars('losses_train', {'recon': np.mean(recon_loss),
-                                            'codebook': np.mean(codebook_loss),
-                                            'commitment': np.mean(commitment_loss)}, step)
+            writer.add_scalars('losses_train', {'recon': np.mean(recon_loss),
+                                                'codebook': np.mean(codebook_loss),
+                                                'commitment': np.mean(commitment_loss)}, step)
 
         # Compute metrics on the test set after each training epoch
         test_state = state
         for batch in testloader:
-            if use_ema:
+            if conf.use_ema:
                 img_reconstruction, loss, metrics = eval_step_EMA(test_state, batch)
             else:
                 img_reconstruction, loss, metrics = eval_step(test_state, batch)
@@ -143,13 +131,13 @@ def main():
                                     'test': np.mean(loss_test)}, e)
         writer.add_scalars('perplexity', {'train': np.mean(perplexity_train),
                                           'test': np.mean(perplexity_test)}, e)
-        epoch.set_description(f"Epoch: {e+1}/{epochs} - Train Loss: {np.mean(loss_train):.4f} - Test loss: {np.mean(loss_test):.4f}")
+        epoch.set_description(f"Epoch: {e+1}/{conf.num_epochs} - Train Loss: {np.mean(loss_train):.4f} - Test loss: {np.mean(loss_test):.4f}")
     
     # Save model
     ckpt = {'model': state}
     orbax_checkpointer = ocp.PyTreeCheckpointer()
     save_args = orbax_utils.save_args_from_target(ckpt)
-    orbax_checkpointer.save(f"./vqvae_std_lr{learning_rate}_e{epochs}", ckpt, save_args=save_args)
+    orbax_checkpointer.save(f"./vqvae_std_lr{conf.learning_rate}_e{conf.num_epochs}", ckpt, save_args=save_args)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 import jax
 from jax import lax, numpy as jnp
-from jax.lax import linen as nn
+from flax import linen as nn
 
 from typing import Any
 from jax.typing import ArrayLike

@@ -9,15 +9,14 @@ from typing import Any
 import matplotlib.pyplot as plt
 
 def numpy_normalize(x, mean, std):
-    """ Scales values from [0, 255] to [0, 1] and normalizes images with dataset moments """
+    x = x.resize(size=(128, 128))
     x = np.array(x, dtype=jnp.float32) / 255.
     return (x - mean) / std
 
 def numpy_collate(batch):
-    """ Stack elements in batches of numpy arrays instead of Torch tensors """
     transposed_data = list(zip(*batch))
     imgs = np.stack(transposed_data[0])
-    labels = np.array(transposed_data[1])
+    labels = np.stack(transposed_data[1])
     return imgs, labels
 
 def create_train_state(model, rng, learning_rate):
