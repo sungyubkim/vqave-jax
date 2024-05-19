@@ -112,7 +112,7 @@ class VectorQuantizerEMA(nn.Module):
                                         (n + self.num_embeddings * self.epsilon) * n)
             normalised_updated_ema_w = updated_ema_dw / jnp.reshape(updated_ema_cluster_size, [1, -1])
 
-            self.codebook.value = normalised_updated_ema_w
+            codebook.value = normalised_updated_ema_w
 
         # Straight Through Estimator : returns the value of the quantized latent space
         # and multiplies gradient by 1 in chain rule, as input = output

@@ -1,0 +1,13 @@
+batch_size: 256
+num_workers: 8
+learning_rate: 0.001
+num_epochs: 100
+seed: 1234
+beta: 0.25
+gamma: 0.9
+num_embeddings: 512
+latent_dim: 64
+log_dir: "./logs/vqvae_ema"
+use_ema: True
+img_mean: [0.5, 0.5, 0.5]
+img_std: [0.25, 0.25, 0.25]

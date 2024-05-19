@@ -13,6 +13,7 @@ from tqdm import tqdm
 import utils
 from models.vae import VQVAE, VQVAE_EMA
 from omegaconf import OmegaConf
+from argparse import ArgumentParser
 
 @jax.jit
 def train_step(state, batch):
@@ -69,9 +70,10 @@ def eval_step_EMA(state, batch):
                "commitment_loss": commitment_loss}
     return x_recon, recon_loss + commitment_loss, metrics
 
-def main():
-    conf = OmegaConf.load("/home/sungyub/vqave-jax/configs/train_vqvae.yaml")
+def main(args):
+    conf = OmegaConf.load(args.config)
     writer = SummaryWriter(conf.log_dir)
+    model_name = "vqvae_ema" if conf.use_ema else "vqvae"
     
     trainset = CelebA(root="~/data", split='train', download=True,
                        transform=lambda x: utils.numpy_normalize(x, conf.img_mean, conf.img_std))
@@ -128,7 +130,7 @@ def main():
         
         img_reconstruction = utils.numpy_to_torch(img_reconstruction[:16])
         img_grid = torchvision.utils.make_grid(img_reconstruction, nrow=4, normalize=True, pad_value=0.9)
-        writer.add_image('sample_cat', img_grid)
+        writer.add_image('sample_cat', img_grid, e)
         # utils.plot_reconstruction(batch, img_reconstruction, step=step)
             
         writer.add_scalars('loss', {'train': np.mean(loss_train),
@@ -137,12 +139,20 @@ def main():
                                           'test': np.mean(perplexity_test)}, e)
         epoch.set_description(f"Epoch: {e+1}/{conf.num_epochs} - Train Loss: {np.mean(loss_train):.4f} - Test loss: {np.mean(loss_test):.4f}")
     
-    # Save model
-    ckpt = {'model': state}
-    orbax_checkpointer = ocp.PyTreeCheckpointer()
-    save_args = orbax_utils.save_args_from_target(ckpt)
-    orbax_checkpointer.save(f"./vqvae_std_lr{conf.learning_rate}_e{conf.num_epochs}", ckpt, save_args=save_args)
+        # Save model
+        ckpt = {'model': state}
+        orbax_checkpointer = ocp.PyTreeCheckpointer()
+        save_args = orbax_utils.save_args_from_target(ckpt)
+        orbax_checkpointer.save(
+            f"./results/{model_name}_std_lr{conf.learning_rate}_e{conf.num_epochs}", 
+            ckpt,
+            save_args=save_args,
+            force=True,
+            )
 
 
 if __name__ == "__main__":
-    main()
+    parser = ArgumentParser()
+    parser.add_argument("--config", type=str, required=True, help="Path to the configuration file")
+    args = parser.parse_args()
+    main(args)
