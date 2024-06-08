@@ -56,18 +56,18 @@ class EMA(nn.Module):
                                      lambda shape: jnp.zeros(shape, dtype=jnp.int32),
                                      ())
         
-        counter = counter.value + 1
+        counter_ = counter.value + 1
         decay = jax.lax.convert_element_type(self.decay, value.dtype)
         one = jnp.ones([], value.dtype)
-        hidden = hidden.value * decay + value * (one - decay)
-        average = hidden
+        hidden_ = hidden.value * decay + value * (one - decay)
+        average_ = hidden_
         # Apply zero-debiasing
-        average /= (one - jnp.power(decay, counter))
+        average_ /= (one - jnp.power(decay, counter_))
         if update_stats:
-            counter.value = counter
-            hidden.value = hidden
-            average.value = average
-        return average
+            counter.value = counter_
+            hidden.value = hidden_
+            average.value = average_
+        return average.value
 
 
 class VectorQuantizerEMA(nn.Module):

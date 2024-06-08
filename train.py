@@ -112,7 +112,8 @@ def main(args):
             loss_train.append(loss)
             perplexity_train.append(metrics["perplexity"].item())
             recon_loss.append(metrics["recon_loss"].item())
-            codebook_loss.append(metrics["codebook_loss"].item())
+            if not conf.use_ema:
+                codebook_loss.append(metrics["codebook_loss"].item())
             commitment_loss.append(metrics["commitment_loss"].item())
             writer.add_scalars('losses_train', {'recon': np.mean(recon_loss),
                                                 'codebook': np.mean(codebook_loss),
@@ -144,7 +145,7 @@ def main(args):
         orbax_checkpointer = ocp.PyTreeCheckpointer()
         save_args = orbax_utils.save_args_from_target(ckpt)
         orbax_checkpointer.save(
-            f"./results/{model_name}_std_lr{conf.learning_rate}_e{conf.num_epochs}", 
+            f"/home/sungyub/vqave-jax/results/{model_name}_std_lr{conf.learning_rate}_e{conf.num_epochs}", 
             ckpt,
             save_args=save_args,
             force=True,
